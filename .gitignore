@@ -1,0 +1,36 @@
+# Arquivos de dados e modelos
+*.pkl
+*.pickle
+dataset/
+data/
+
+# Configurações do sistema e IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.code-workspace
+
+# Arquivos Python temporários
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Ambientes virtuais
+venv/
+env/
+ENV/
+.env/
+pip-selfcheck.json
+.Python
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.bak
+
+# Arquivos de configuração local (se houver)
+config_local.json

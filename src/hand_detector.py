@@ -1,0 +1,80 @@
+import cv2
+import numpy as np
+import mediapipe as mp
+from collections import deque
+import pickle
+import os
+
+def load_labels(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+class HandDetector:
+    def __init__(self, config):
+        self.mp_hands = mp.solutions.hands
+        self.mp_draw  = mp.solutions.drawing_utils
+        self.hands    = self.mp_hands.Hands(
+            static_image_mode        = config.get("static_image_mode", False),
+            max_num_hands            = config.get("max_num_hands", 1),
+            min_detection_confidence = config.get("min_detection_confidence", 0.7),
+            min_tracking_confidence  = config.get("min_tracking_confidence", 0.5)
+        )
+
+        base = os.path.dirname(__file__)
+        model_path  = os.path.abspath(os.path.join(base, config["model_path"]))
+        labels_path = os.path.abspath(os.path.join(base, config["labels_file"]))
+
+        print(f">>> Carregando modelo de: {model_path}")
+        with open(model_path, "rb") as f:
+            self.model = pickle.load(f)
+
+        self.labels = load_labels(labels_path)
+        print("→ Labels:", self.labels)
+
+        self.history = deque(maxlen=config.get("smoothing_window", 7))
+        self.threshold = config.get("prediction_threshold", 0.6)
+        self.margin_threshold = config.get("margin_threshold", 0.15)
+
+    def _extract_landmarks(self, hand_landmarks):
+        """Extrai os 21 pontos (x, y, z) como vetor flat."""
+        pontos = []
+        for lm in hand_landmarks.landmark:
+            pontos.extend([lm.x, lm.y, lm.z])
+        return np.array(pontos)
+
+    def detect(self, frame):
+        vis     = frame.copy()
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        res     = self.hands.process(img_rgb)
+        letter  = ""
+
+        if res.multi_hand_landmarks:
+            hand_landmarks = res.multi_hand_landmarks[0]
+            pontos = self._extract_landmarks(hand_landmarks)
+
+            # Fazer a predição com o modelo .pkl
+            pred = self.model.predict_proba([pontos])[0]
+            idxs = np.argsort(pred)[::-1][:3]
+            debug_text = "  ".join(f"{self.labels[i]}:{pred[i]:.2f}" for i in idxs)
+            cv2.putText(vis, debug_text, (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
+            top = idxs[0]
+            conf_top = pred[top]
+
+            if conf_top >= self.threshold:
+                letter_raw = self.labels[top]
+                self.history.append(letter_raw)
+
+            # Votação simples para suavização
+            votes = [l for l in self.history if l]
+            if votes:
+                letter = max(set(votes), key=votes.count)
+
+            # Desenha landmarks
+            for lm in res.multi_hand_landmarks:
+                self.mp_draw.draw_landmarks(vis, lm, self.mp_hands.HAND_CONNECTIONS)
+        else:
+            self.history.clear()
+
+        return vis, letter
