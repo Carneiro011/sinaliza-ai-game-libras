@@ -1,13 +1,9 @@
 {
-  "pontos": 650,
+  "pontos": 250,
   "palavras_completas": [
-    "GIDA",
     "DIVA",
-    "VIDA",
     "BG",
-    "BAGDAD",
-    "DIVIDA",
-    "BAVI"
+    "VIDA"
   ],
-  "tempo_total": 48
+  "tempo_total": 17
 }
