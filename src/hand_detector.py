@@ -12,16 +12,17 @@ def load_labels(path):
 class HandDetector:
     def __init__(self, config):
         self.mp_hands = mp.solutions.hands
-        self.mp_draw  = mp.solutions.drawing_utils
-        self.hands    = self.mp_hands.Hands(
-            static_image_mode        = config.get("static_image_mode", False),
-            max_num_hands            = config.get("max_num_hands", 1),
-            min_detection_confidence = config.get("min_detection_confidence", 0.7),
-            min_tracking_confidence  = config.get("min_tracking_confidence", 0.5)
+        self.mp_draw = mp.solutions.drawing_utils
+        self.hands = self.mp_hands.Hands(
+            static_image_mode=config.get("static_image_mode", False),
+            max_num_hands=config.get("max_num_hands", 1),
+            min_detection_confidence=config.get("min_detection_confidence", 0.7),
+            min_tracking_confidence=config.get("min_tracking_confidence", 0.5)
         )
 
+        # Carregar modelo e labels
         base = os.path.dirname(__file__)
-        model_path  = os.path.abspath(os.path.join(base, config["model_path"]))
+        model_path = os.path.abspath(os.path.join(base, config["model_path"]))
         labels_path = os.path.abspath(os.path.join(base, config["labels_file"]))
 
         print(f">>> Carregando modelo de: {model_path}")
@@ -36,26 +37,37 @@ class HandDetector:
         self.margin_threshold = config.get("margin_threshold", 0.15)
 
     def _extract_landmarks(self, hand_landmarks):
-        """Extrai os 21 pontos (x, y, z) como vetor flat."""
+        """Extrai e normaliza os 21 pontos (x, y, z) como vetor flat."""
+        base = np.array([hand_landmarks[0].x, hand_landmarks[0].y, hand_landmarks[0].z])
         pontos = []
-        for lm in hand_landmarks.landmark:
-            pontos.extend([lm.x, lm.y, lm.z])
-        return np.array(pontos)
+        for lm in hand_landmarks:
+            ponto = np.array([lm.x, lm.y, lm.z]) - base
+            pontos.extend(ponto)
+        pontos = np.array(pontos)
+        norma = np.linalg.norm(pontos)
+        return pontos / norma if norma != 0 else pontos
 
     def detect(self, frame):
-        vis     = frame.copy()
+        vis = frame.copy()
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        res     = self.hands.process(img_rgb)
-        letter  = ""
+        res = self.hands.process(img_rgb)
+        letter = ""
 
         if res.multi_hand_landmarks:
             hand_landmarks = res.multi_hand_landmarks[0]
-            pontos = self._extract_landmarks(hand_landmarks)
+            pontos = self._extract_landmarks(hand_landmarks.landmark)
 
-            # Fazer a predição com o modelo .pkl
+            # Predição de probabilidades
             pred = self.model.predict_proba([pontos])[0]
-            idxs = np.argsort(pred)[::-1][:3]
-            debug_text = "  ".join(f"{self.labels[i]}:{pred[i]:.2f}" for i in idxs)
+
+            # Garantir que só pegamos os índices válidos
+            top_k = min(3, len(self.labels))
+            idxs = np.argsort(pred)[::-1][:top_k]
+
+            # Mostrar debug das principais predições
+            debug_text = "  ".join(
+                f"{self.labels[i]}:{pred[i]:.2f}" for i in idxs if i < len(self.labels)
+            )
             cv2.putText(vis, debug_text, (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
 
@@ -66,12 +78,12 @@ class HandDetector:
                 letter_raw = self.labels[top]
                 self.history.append(letter_raw)
 
-            # Votação simples para suavização
+            # Suavização com votação
             votes = [l for l in self.history if l]
             if votes:
                 letter = max(set(votes), key=votes.count)
 
-            # Desenha landmarks
+            # Desenhar landmarks
             for lm in res.multi_hand_landmarks:
                 self.mp_draw.draw_landmarks(vis, lm, self.mp_hands.HAND_CONNECTIONS)
         else:
