@@ -1,8 +1,8 @@
 {
   "camera_index": 0,
 
-  "model_path": "../modelo_libras.pkl",
-  "labels_file": "../labels.txt",
+  "model_path": "models/modelo_libras.pkl",
+  "labels_file": "src/labels.txt",
 
   "words": ["BG"],
   "static_image_mode": false,

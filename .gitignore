@@ -1,36 +1,45 @@
-# Arquivos de dados e modelos
-*.pkl
-*.pickle
-dataset/
-data/
-
-# Configurações do sistema e IDE
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.code-workspace
-
-# Arquivos Python temporários
+# Ignorar arquivos Python compilados
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
-*.so
-*.egg-info/
 
-# Ambientes virtuais
-venv/
-env/
-ENV/
-.env/
-pip-selfcheck.json
-.Python
-
-# Logs e arquivos temporários
+# Ignorar arquivos temporários e logs
 *.log
 *.tmp
+*.temp
 *.bak
+*.swp
+.DS_Store
+Thumbs.db
 
-# Arquivos de configuração local (se houver)
-config_local.json
+# Ignorar ambientes virtuais
+venv/
+.env/
+.envrc
+
+# Ignorar notebooks temporários e cache
+.ipynb_checkpoints/
+.cache/
+.mypy_cache/
+.pytest_cache/
+
+# Ignorar arquivos de configuração de IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Ignorar arquivos pessoais e backups
+*.old
+*.orig
+
+# Permitir arquivos importantes para o projeto
+!*.pkl
+!*.json
+!*.mp3
+!*.ttf
+!labels.txt
+
+# Permitir arquivos dentro de assets/
+!src/assets/*

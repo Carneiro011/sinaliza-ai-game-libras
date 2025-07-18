@@ -11,9 +11,9 @@ class Game:
     def __init__(self, config):
         self.config = config
         self.words = config["words"]
-        self.ranking_file = "ranking.json"
-        self.sound_path = "src/vitoria.mp3"
-        self.font_path = "seguiemj.ttf"  # Ou "arial.ttf"
+        self.ranking_file = "data/ranking.json"
+        self.sound_path = "src/assets/vitoria.mp3"
+        self.font_path = "ssrc/assets/seguiemj.ttf"  # Ou "arial.ttf"
         self.reset()
 
         pygame.mixer.init()

@@ -20,10 +20,10 @@ class HandDetector:
             min_tracking_confidence=config.get("min_tracking_confidence", 0.5)
         )
 
-        # Carregar modelo e labels
-        base = os.path.dirname(__file__)
-        model_path = os.path.abspath(os.path.join(base, config["model_path"]))
-        labels_path = os.path.abspath(os.path.join(base, config["labels_file"]))
+        # Caminho absoluto baseado na raiz do projeto
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        model_path = os.path.join(project_root, config["model_path"])
+        labels_path = os.path.join(project_root, config["labels_file"])
 
         print(f">>> Carregando modelo de: {model_path}")
         with open(model_path, "rb") as f:

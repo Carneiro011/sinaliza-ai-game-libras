@@ -2,8 +2,12 @@ import json, sys, cv2, os
 from hand_detector import HandDetector
 from game import Game
 
-def load_config(path="config.json"):
+def load_config(path=None):
     try:
+        if path is None:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            path = os.path.abspath(os.path.join(base_dir, "..", "config.json"))
+
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
@@ -11,10 +15,10 @@ def load_config(path="config.json"):
         sys.exit(1)
 
 def main():
-    cfg = load_config(os.path.join(os.path.dirname(__file__), "config.json"))
+    cfg = load_config()
     cap = cv2.VideoCapture(cfg["camera_index"])
 
-    # Aumentar a resolução
+    # Aumentar a resolução da câmera
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -41,7 +45,7 @@ def main():
         else:
             frame = game.render_final(frame, key=key)
 
-        cv2.imshow("Herói do Alfabeto", frame)
+        cv2.imshow("soletrador", frame)
 
         if key == 27:  # ESC
             break
