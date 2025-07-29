@@ -32,6 +32,7 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
     detector = HandDetector(cfg)
     game = Game(cfg)
 
+    # Configurar callback de clique do mouse (seta voltar)
     cv2.namedWindow("Soletrador - LIBRAS")
     import game as game_module
     cv2.setMouseCallback("Soletrador - LIBRAS", game_module.mouse_click)
@@ -51,12 +52,15 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
             frame = game.render(frame, letter, key=key)
         else:
             result = game.render_final(frame, key=key)
-            if result == "menu":
+
+            if isinstance(result, str) and result == "menu":
                 cap.release()
                 cv2.destroyAllWindows()
                 import gui
                 gui.ConfigScreen().mainloop()
                 return
+            else:
+                frame = result
 
         cv2.imshow("Soletrador - LIBRAS", frame)
 

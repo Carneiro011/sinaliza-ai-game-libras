@@ -1,3 +1,4 @@
+# game.py
 import json
 import os
 import random
@@ -7,7 +8,7 @@ import cv2
 import numpy as np
 from PIL import ImageFont, ImageDraw, Image
 
-click_coords = [None]  # posição global de clique do mouse
+click_coords = [None]
 
 def mouse_click(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONDOWN:
@@ -45,6 +46,7 @@ class Game:
         self.played_sound = False
         self.current_player = 0
         self.scores = [0, 0]
+        click_coords[0] = None
 
     def check_finished(self):
         return self.finished
@@ -124,10 +126,14 @@ class Game:
                     ranking = json.load(f)
             except:
                 ranking = []
+
+        vencedor_idx = 0 if self.scores[0] >= self.scores[1] else 1
         ranking.append({
-            "pontos": self.scores[0],
+            "nome": self.nomes[vencedor_idx],
+            "pontos": self.scores[vencedor_idx],
             "tempo": round(time.time() - self.session_start)
         })
+
         ranking = sorted(ranking, key=lambda x: (-x["pontos"], x["tempo"]))[:5]
         with open(self.ranking_file, "w", encoding="utf-8") as f:
             json.dump(ranking, f, indent=2)
@@ -144,17 +150,14 @@ class Game:
     def draw_unicode_text(self, frame, text, position, font_size=32, color=(255, 255, 255), center=False):
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(img_pil)
-
         try:
             font = ImageFont.truetype(self.font_path, font_size)
         except:
             font = ImageFont.load_default()
-
         if center:
             text_size = draw.textbbox((0, 0), text, font=font)
             text_width = text_size[2] - text_size[0]
             position = (position[0] - text_width // 2, position[1])
-
         draw.text(position, text, font=font, fill=color)
         return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
@@ -163,32 +166,27 @@ class Game:
         elapsed = time.time() - self.last_time
         total = self.letter_timer
         remaining_ratio = max(0, (total - elapsed) / total)
-
         bar_total_width = int(w * 0.6)
         bar_width = int(bar_total_width * remaining_ratio)
         bar_height = 30
         x_start = int((w - bar_total_width) // 2)
         y_start = h - 100
-
         if remaining_ratio > 0.5:
             color = (0, 255, 0)
         elif remaining_ratio > 0.2:
             color = (0, 255, 255)
         else:
             color = (0, 0, 255)
-
         cv2.rectangle(frame, (x_start, y_start), (x_start + bar_width, y_start + bar_height), color, -1)
         cv2.rectangle(frame, (x_start, y_start), (x_start + bar_total_width, y_start + bar_height), (255, 255, 255), 2)
         return frame
 
     def render(self, frame, pred_letter, key=None):
         h, w, _ = frame.shape
-
         if self.finished:
             return self.render_final(frame, key)
 
         word = self.words[self.idx_word]
-
         if key == ord('p'):
             self.feedback = "Letra pulada!"
             self.feedback_time = 30
@@ -208,11 +206,13 @@ class Game:
             cv2.putText(frame, ch, (x, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, cor, 3)
             x += 60
 
-        # Pontuação lado direito, um abaixo do outro
-        frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w - 300, 40), 28)
-        frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w - 300, 80), 28)
-        frame = self.draw_unicode_text(frame, f"🎯 Vez de: {self.nomes[self.current_player]}", (w // 2, 40), 28, (0, 255, 255), center=True)
+        if self.num_players == 1:
+            frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w - 300, 40), 28)
+        else:
+            frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w - 300, 40), 28)
+            frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w - 300, 80), 28)
 
+        frame = self.draw_unicode_text(frame, f"🎯 Vez de: {self.nomes[self.current_player]}", (w // 2, 40), 28, (0, 255, 255), center=True)
         frame = self.draw_unicode_text(frame, f"Previsto: {pred_letter}", (50, h - 50), 28)
         tempo_restante = max(0, int(self.letter_timer - (time.time() - self.last_time)))
         frame = self.draw_unicode_text(frame, f"{tempo_restante}s", (w - 100, h - 50), 28)
@@ -223,14 +223,15 @@ class Game:
 
         frame = self.draw_time_bar(frame)
 
-        # Botão de voltar ao menu (seta)
-        cv2.rectangle(frame, (20, 20), (80, 80), (255, 255, 255), -1)
-        pts = np.array([[30, 50], [60, 30], [60, 70]], np.int32)
+        # Botão voltar ao menu
+        cv2.rectangle(frame, (10, 10), (50, 50), (255, 255, 255), -1)
+        pts = np.array([[18, 30], [40, 18], [40, 42]], np.int32)
         cv2.fillPoly(frame, [pts], (0, 0, 0))
         if click_coords[0]:
             cx, cy = click_coords[0]
-            if 20 <= cx <= 80 and 20 <= cy <= 80:
+            if 10 <= cx <= 50 and 10 <= cy <= 50:
                 click_coords[0] = None
+                pygame.mixer.music.stop()
                 self.finished = True
                 return self.render_final(frame, key=ord('m'))
 
@@ -238,17 +239,16 @@ class Game:
 
     def render_final(self, frame, key=None):
         h, w, _ = frame.shape
-
         if not self.played_sound and os.path.exists(self.sound_path):
             pygame.mixer.music.play(loops=0)
             self.played_sound = True
 
         self._draw_confetes(frame)
-
         frame = self.draw_unicode_text(frame, "🎉 PARABÉNS!", (w // 2, h // 2 - 100), 48, (0, 255, 0), center=True)
-
         frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w // 2, h // 2 - 30), 36, (255, 255, 255), center=True)
-        frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w // 2, h // 2 + 10), 36, (255, 255, 255), center=True)
+
+        if self.num_players == 2:
+            frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w // 2, h // 2 + 10), 36, (255, 255, 255), center=True)
 
         if self.scores[0] > self.scores[1]:
             result = f"🏆 {self.nomes[0]} venceu!"
@@ -261,14 +261,15 @@ class Game:
         frame = self.draw_unicode_text(frame, "Pressione R para jogar novamente", (w // 2, h // 2 + 90), 28, (255, 255, 0), center=True)
         frame = self.draw_unicode_text(frame, "Pressione ESC para sair ❌", (w // 2, h // 2 + 130), 28, (255, 255, 255), center=True)
 
-        # Botão de voltar ao menu (seta)
-        cv2.rectangle(frame, (20, 20), (80, 80), (255, 255, 255), -1)
-        pts = np.array([[30, 50], [60, 30], [60, 70]], np.int32)
+        # Botão de voltar
+        cv2.rectangle(frame, (10, 10), (50, 50), (255, 255, 255), -1)
+        pts = np.array([[18, 30], [40, 18], [40, 42]], np.int32)
         cv2.fillPoly(frame, [pts], (0, 0, 0))
         if click_coords[0]:
             cx, cy = click_coords[0]
-            if 20 <= cx <= 80 and 20 <= cy <= 80:
+            if 10 <= cx <= 50 and 10 <= cy <= 50:
                 click_coords[0] = None
+                pygame.mixer.music.stop()
                 return "menu"
 
         ranking = self.load_ranking()
@@ -276,7 +277,7 @@ class Game:
         frame = self.draw_unicode_text(frame, "🏆 Ranking:", (w // 2, y), 28, (255, 215, 0), center=True)
         for i, r in enumerate(ranking):
             y += 35
-            texto = f"{i + 1}º - {r['pontos']} pts em {r['tempo']}s"
+            texto = f"{i + 1}º - {r.get('nome', 'Jogador')} - {r['pontos']} pts em {r['tempo']}s"
             frame = self.draw_unicode_text(frame, texto, (w // 2, y), 24, center=True)
 
         if key == ord('r'):
