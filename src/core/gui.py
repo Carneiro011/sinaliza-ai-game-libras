@@ -1,15 +1,14 @@
 import sys
 import os
-
-# Adiciona a pasta src ao sys.path (necessário para importar 'core.main')
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+import json
+import sqlite3
 import tkinter as tk
 import customtkinter as ctk
-import json
+
+# Adiciona o diretório src ao sys.path para importar corretamente
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from core import main
-
-
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -36,8 +35,8 @@ class App(ctk.CTk):
         self.num_jogadores = tk.IntVar(value=1)
         self.nome1 = tk.StringVar(value="Jogador 1")
         self.nome2 = tk.StringVar(value="Jogador 2")
+        self.label_valor_tempo = None
 
-        self.label_valor_tempo = None  # referência ao valor do tempo mostrado
         self.criar_abas()
 
     def criar_abas(self):
@@ -68,8 +67,8 @@ class App(ctk.CTk):
         if not ranking:
             ctk.CTkLabel(self.frame_conteudo, text="Nenhum ranking disponível.").pack()
         else:
-            for i, r in enumerate(ranking):
-                texto = f"{i+1}º - {r.get('nome', 'Jogador')} - {r['pontos']} pts em {r['tempo']}s"
+            for i, (nome, pontos, tempo, data) in enumerate(ranking):
+                texto = f"{i+1}º - {nome} - {pontos} pts em {tempo}s ({data[:16]})"
                 ctk.CTkLabel(self.frame_conteudo, text=texto).pack()
 
         ctk.CTkButton(self.frame_conteudo, text="▶️ Iniciar Jogo", command=self.iniciar_jogo).pack(pady=20)
@@ -80,7 +79,6 @@ class App(ctk.CTk):
         ctk.CTkLabel(self.frame_conteudo, text="⚙️ Configurações", font=("Arial", 20)).pack(pady=10)
 
         ctk.CTkLabel(self.frame_conteudo, text="⏱️ Tempo por letra (segundos):").pack()
-
         tempo_frame = ctk.CTkFrame(self.frame_conteudo, fg_color="transparent")
         tempo_frame.pack()
 
@@ -115,14 +113,25 @@ class App(ctk.CTk):
         main.run_game(tempo, jogadores, nomes)
 
     def carregar_ranking(self):
-        caminho = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "ranking.json"))
-        if os.path.exists(caminho):
-            try:
-                with open(caminho, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except:
-                return []
-        return []
+        db_path = os.path.abspath(os.path.join("data", "ranking.db"))
+        if not os.path.exists(db_path):
+            return []
+
+        try:
+            conn = sqlite3.connect(db_path)
+            c = conn.cursor()
+            c.execute("""
+                SELECT nome, pontos, tempo, data
+                FROM ranking
+                ORDER BY pontos DESC, tempo ASC
+                LIMIT 5
+            """)
+            dados = c.fetchall()
+            conn.close()
+            return dados
+        except Exception as e:
+            print(f"[ERRO] ao carregar ranking do banco: {e}")
+            return []
 
 if __name__ == "__main__":
     app = App()

@@ -1,11 +1,11 @@
-# game.py
-import json
 import os
 import random
 import time
+import json
 import pygame
 import cv2
 import numpy as np
+import sqlite3
 from PIL import ImageFont, ImageDraw, Image
 
 click_coords = [None]
@@ -18,7 +18,7 @@ class Game:
     def __init__(self, config):
         self.config = config
         self.words = config["words"]
-        self.ranking_file = "data/ranking.json"
+        self.db_path = os.path.abspath(os.path.join("data", "ranking.db"))
         self.sound_path = "src/assets/vitoria.mp3"
         self.font_path = "src/assets/seguiemj.ttf"
         self.letter_timer = config.get("letter_timer", 10)
@@ -26,11 +26,28 @@ class Game:
         self.nomes = config.get("nomes", ["Jogador 1", "Jogador 2"])
         self.current_player = 0
         self.scores = [0, 0]
+        self._init_db()
         self.reset()
 
         pygame.mixer.init()
         if os.path.exists(self.sound_path):
             pygame.mixer.music.load(self.sound_path)
+
+    def _init_db(self):
+        os.makedirs("data", exist_ok=True)
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS ranking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT,
+                pontos INTEGER,
+                tempo INTEGER,
+                data TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        conn.close()
 
     def reset(self):
         random.shuffle(self.words)
@@ -97,55 +114,27 @@ class Game:
                     self.save_ranking()
                     self.finished = True
 
-    def _draw_confetes(self, frame):
-        h, w, _ = frame.shape
-        if len(self.confetes) < 100:
-            for _ in range(5):
-                self.confetes.append({
-                    "x": random.randint(0, w),
-                    "y": random.randint(-100, 0),
-                    "color": (
-                        random.randint(100, 255),
-                        random.randint(100, 255),
-                        random.randint(100, 255)
-                    ),
-                    "speed": random.randint(3, 10)
-                })
-        for c in self.confetes:
-            c["y"] += c["speed"]
-            if c["y"] > h:
-                c["y"] = random.randint(-100, 0)
-                c["x"] = random.randint(0, w)
-            cv2.circle(frame, (c["x"], c["y"]), 5, c["color"], -1)
-
     def save_ranking(self):
-        ranking = []
-        if os.path.exists(self.ranking_file):
-            try:
-                with open(self.ranking_file, "r", encoding="utf-8") as f:
-                    ranking = json.load(f)
-            except:
-                ranking = []
-
         vencedor_idx = 0 if self.scores[0] >= self.scores[1] else 1
-        ranking.append({
-            "nome": self.nomes[vencedor_idx],
-            "pontos": self.scores[vencedor_idx],
-            "tempo": round(time.time() - self.session_start)
-        })
-
-        ranking = sorted(ranking, key=lambda x: (-x["pontos"], x["tempo"]))[:5]
-        with open(self.ranking_file, "w", encoding="utf-8") as f:
-            json.dump(ranking, f, indent=2)
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("""
+            INSERT INTO ranking (nome, pontos, tempo)
+            VALUES (?, ?, ?)
+        """, (self.nomes[vencedor_idx], self.scores[vencedor_idx], round(time.time() - self.session_start)))
+        conn.commit()
+        conn.close()
 
     def load_ranking(self):
-        if os.path.exists(self.ranking_file):
-            try:
-                with open(self.ranking_file, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except:
-                return []
-        return []
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("""
+            SELECT nome, pontos, tempo, data FROM ranking
+            ORDER BY pontos DESC, tempo ASC LIMIT 5
+        """)
+        dados = c.fetchall()
+        conn.close()
+        return dados
 
     def draw_unicode_text(self, frame, text, position, font_size=32, color=(255, 255, 255), center=False):
         img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -180,6 +169,27 @@ class Game:
         cv2.rectangle(frame, (x_start, y_start), (x_start + bar_width, y_start + bar_height), color, -1)
         cv2.rectangle(frame, (x_start, y_start), (x_start + bar_total_width, y_start + bar_height), (255, 255, 255), 2)
         return frame
+
+    def _draw_confetes(self, frame):
+        h, w, _ = frame.shape
+        if len(self.confetes) < 100:
+            for _ in range(5):
+                self.confetes.append({
+                    "x": random.randint(0, w),
+                    "y": random.randint(-100, 0),
+                    "color": (
+                        random.randint(100, 255),
+                        random.randint(100, 255),
+                        random.randint(100, 255)
+                    ),
+                    "speed": random.randint(3, 10)
+                })
+        for c in self.confetes:
+            c["y"] += c["speed"]
+            if c["y"] > h:
+                c["y"] = random.randint(-100, 0)
+                c["x"] = random.randint(0, w)
+            cv2.circle(frame, (c["x"], c["y"]), 5, c["color"], -1)
 
     def render(self, frame, pred_letter, key=None):
         h, w, _ = frame.shape
@@ -223,7 +233,7 @@ class Game:
 
         frame = self.draw_time_bar(frame)
 
-        # Botão voltar ao menu
+        # Botão voltar
         cv2.rectangle(frame, (10, 10), (50, 50), (255, 255, 255), -1)
         pts = np.array([[18, 30], [40, 18], [40, 42]], np.int32)
         cv2.fillPoly(frame, [pts], (0, 0, 0))
@@ -245,10 +255,14 @@ class Game:
 
         self._draw_confetes(frame)
         frame = self.draw_unicode_text(frame, "🎉 PARABÉNS!", (w // 2, h // 2 - 100), 48, (0, 255, 0), center=True)
-        frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w // 2, h // 2 - 30), 36, (255, 255, 255), center=True)
 
+        placares = [f"{self.nomes[0]}: {self.scores[0]} pts"]
         if self.num_players == 2:
-            frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w // 2, h // 2 + 10), 36, (255, 255, 255), center=True)
+            placares.append(f"{self.nomes[1]}: {self.scores[1]} pts")
+
+        start_y = h // 2 - 30
+        for i, texto in enumerate(placares):
+            frame = self.draw_unicode_text(frame, texto, (w // 2, start_y + i * 40), 36, (255, 255, 255), center=True)
 
         if self.scores[0] > self.scores[1]:
             result = f"🏆 {self.nomes[0]} venceu!"
@@ -257,9 +271,9 @@ class Game:
         else:
             result = "🤝 Empate!"
 
-        frame = self.draw_unicode_text(frame, result, (w // 2, h // 2 + 50), 30, (0, 255, 255), center=True)
-        frame = self.draw_unicode_text(frame, "Pressione R para jogar novamente", (w // 2, h // 2 + 90), 28, (255, 255, 0), center=True)
-        frame = self.draw_unicode_text(frame, "Pressione ESC para sair ❌", (w // 2, h // 2 + 130), 28, (255, 255, 255), center=True)
+        frame = self.draw_unicode_text(frame, result, (w // 2, h // 2 + 70), 30, (0, 255, 255), center=True)
+        frame = self.draw_unicode_text(frame, "Pressione R para jogar novamente", (w // 2, h // 2 + 110), 28, (255, 255, 0), center=True)
+        frame = self.draw_unicode_text(frame, "Pressione ESC para sair ❌", (w // 2, h // 2 + 150), 28, (255, 255, 255), center=True)
 
         # Botão de voltar
         cv2.rectangle(frame, (10, 10), (50, 50), (255, 255, 255), -1)
@@ -273,11 +287,12 @@ class Game:
                 return "menu"
 
         ranking = self.load_ranking()
-        y = h // 2 + 180
+        y = h // 2 + 190
         frame = self.draw_unicode_text(frame, "🏆 Ranking:", (w // 2, y), 28, (255, 215, 0), center=True)
         for i, r in enumerate(ranking):
             y += 35
-            texto = f"{i + 1}º - {r.get('nome', 'Jogador')} - {r['pontos']} pts em {r['tempo']}s"
+            nome, pontos, tempo, data = r
+            texto = f"{i + 1}º - {nome} - {pontos} pts em {tempo}s ({data[:16]})"
             frame = self.draw_unicode_text(frame, texto, (w // 2, y), 24, center=True)
 
         if key == ord('r'):

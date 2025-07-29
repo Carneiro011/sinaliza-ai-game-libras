@@ -20,7 +20,7 @@ class HandDetector:
             min_tracking_confidence=config.get("min_tracking_confidence", 0.5)
         )
 
-        # Caminho absoluto baseado na raiz do projeto
+        # Caminhos absolutos para modelo e labels
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         model_path = os.path.join(project_root, config["model_path"])
         labels_path = os.path.join(project_root, config["labels_file"])
@@ -37,7 +37,6 @@ class HandDetector:
         self.margin_threshold = config.get("margin_threshold", 0.15)
 
     def _extract_landmarks(self, hand_landmarks):
-        """Extrai e normaliza os 21 pontos (x, y, z) como vetor flat."""
         base = np.array([hand_landmarks[0].x, hand_landmarks[0].y, hand_landmarks[0].z])
         pontos = []
         for lm in hand_landmarks:
@@ -57,14 +56,11 @@ class HandDetector:
             hand_landmarks = res.multi_hand_landmarks[0]
             pontos = self._extract_landmarks(hand_landmarks.landmark)
 
-            # Predição de probabilidades
             pred = self.model.predict_proba([pontos])[0]
 
-            # Garantir que só pegamos os índices válidos
-            top_k = min(3, len(self.labels))
+            top_k = min(3, len(pred))
             idxs = np.argsort(pred)[::-1][:top_k]
 
-            # Mostrar debug das principais predições
             debug_text = "  ".join(
                 f"{self.labels[i]}:{pred[i]:.2f}" for i in idxs if i < len(self.labels)
             )
@@ -74,16 +70,17 @@ class HandDetector:
             top = idxs[0]
             conf_top = pred[top]
 
-            if conf_top >= self.threshold:
-                letter_raw = self.labels[top]
-                self.history.append(letter_raw)
+            if 0 <= top < len(self.labels):
+                if conf_top >= self.threshold:
+                    letter_raw = self.labels[top]
+                    self.history.append(letter_raw)
+            else:
+                print(f"[AVISO] Índice fora do intervalo de labels: {top}")
 
-            # Suavização com votação
             votes = [l for l in self.history if l]
             if votes:
                 letter = max(set(votes), key=votes.count)
 
-            # Desenhar landmarks
             for lm in res.multi_hand_landmarks:
                 self.mp_draw.draw_landmarks(vis, lm, self.mp_hands.HAND_CONNECTIONS)
         else:
