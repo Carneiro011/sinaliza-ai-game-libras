@@ -7,13 +7,24 @@ import cv2
 import numpy as np
 from PIL import ImageFont, ImageDraw, Image
 
+click_coords = [None]  # posição global de clique do mouse
+
+def mouse_click(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        click_coords[0] = (x, y)
+
 class Game:
     def __init__(self, config):
         self.config = config
         self.words = config["words"]
         self.ranking_file = "data/ranking.json"
         self.sound_path = "src/assets/vitoria.mp3"
-        self.font_path = "ssrc/assets/seguiemj.ttf"  # Ou "arial.ttf"
+        self.font_path = "src/assets/seguiemj.ttf"
+        self.letter_timer = config.get("letter_timer", 10)
+        self.num_players = config.get("jogadores", 1)
+        self.nomes = config.get("nomes", ["Jogador 1", "Jogador 2"])
+        self.current_player = 0
+        self.scores = [0, 0]
         self.reset()
 
         pygame.mixer.init()
@@ -24,16 +35,16 @@ class Game:
         random.shuffle(self.words)
         self.idx_word = 0
         self.idx_letter = 0
-        self.points = 0
         self.feedback = ""
         self.feedback_time = 0
-        self.letter_timer = 10
         self.last_time = time.time()
         self.session_start = time.time()
         self.completed = []
         self.finished = False
         self.confetes = []
         self.played_sound = False
+        self.current_player = 0
+        self.scores = [0, 0]
 
     def check_finished(self):
         return self.finished
@@ -47,9 +58,11 @@ class Game:
         self.idx_word += 1
         self.idx_letter = 0
         if self.idx_word >= len(self.words):
-            self.feedback = "FIM DO JOGO!"
+            self.feedback = "🏁 FIM DO JOGO!"
             self.save_ranking()
             self.finished = True
+        elif self.num_players == 2:
+            self.current_player = (self.current_player + 1) % 2
 
     def update(self, pred_letter):
         now = time.time()
@@ -62,20 +75,21 @@ class Game:
 
         target = self.words[self.idx_word][self.idx_letter]
         if pred_letter == target:
-            self.points += 10
+            self.scores[self.current_player] += 10
             self.idx_letter += 1
             self.feedback = "✅ ACERTOU!"
             self.feedback_time = 30
             self.last_time = now
 
             if self.idx_letter >= len(self.words[self.idx_word]):
-                self.points += 50
+                self.scores[self.current_player] += 50
                 self.feedback = "🎉 PALAVRA COMPLETA!"
                 self.feedback_time = 60
                 self.completed.append(self.words[self.idx_word])
                 self.idx_word += 1
                 self.idx_letter = 0
-
+                if self.num_players == 2:
+                    self.current_player = (self.current_player + 1) % 2
                 if self.idx_word >= len(self.words):
                     self.feedback = "🏁 FIM DO JOGO!"
                     self.save_ranking()
@@ -111,7 +125,7 @@ class Game:
             except:
                 ranking = []
         ranking.append({
-            "pontos": self.points,
+            "pontos": self.scores[0],
             "tempo": round(time.time() - self.session_start)
         })
         ranking = sorted(ranking, key=lambda x: (-x["pontos"], x["tempo"]))[:5]
@@ -144,6 +158,29 @@ class Game:
         draw.text(position, text, font=font, fill=color)
         return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
+    def draw_time_bar(self, frame):
+        h, w, _ = frame.shape
+        elapsed = time.time() - self.last_time
+        total = self.letter_timer
+        remaining_ratio = max(0, (total - elapsed) / total)
+
+        bar_total_width = int(w * 0.6)
+        bar_width = int(bar_total_width * remaining_ratio)
+        bar_height = 30
+        x_start = int((w - bar_total_width) // 2)
+        y_start = h - 100
+
+        if remaining_ratio > 0.5:
+            color = (0, 255, 0)
+        elif remaining_ratio > 0.2:
+            color = (0, 255, 255)
+        else:
+            color = (0, 0, 255)
+
+        cv2.rectangle(frame, (x_start, y_start), (x_start + bar_width, y_start + bar_height), color, -1)
+        cv2.rectangle(frame, (x_start, y_start), (x_start + bar_total_width, y_start + bar_height), (255, 255, 255), 2)
+        return frame
+
     def render(self, frame, pred_letter, key=None):
         h, w, _ = frame.shape
 
@@ -171,14 +208,31 @@ class Game:
             cv2.putText(frame, ch, (x, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, cor, 3)
             x += 60
 
-        frame = self.draw_unicode_text(frame, f"PONTOS: {self.points}", (w - 300, 40), 28)
+        # Pontuação lado direito, um abaixo do outro
+        frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w - 300, 40), 28)
+        frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w - 300, 80), 28)
+        frame = self.draw_unicode_text(frame, f"🎯 Vez de: {self.nomes[self.current_player]}", (w // 2, 40), 28, (0, 255, 255), center=True)
+
         frame = self.draw_unicode_text(frame, f"Previsto: {pred_letter}", (50, h - 50), 28)
         tempo_restante = max(0, int(self.letter_timer - (time.time() - self.last_time)))
-        frame = self.draw_unicode_text(frame, f"Tempo: {tempo_restante}s", (w - 300, h - 50), 28)
+        frame = self.draw_unicode_text(frame, f"{tempo_restante}s", (w - 100, h - 50), 28)
 
         if self.feedback_time > 0:
             frame = self.draw_unicode_text(frame, self.feedback, (w // 2, h // 2), 40, (0, 255, 0), center=True)
             self.feedback_time -= 1
+
+        frame = self.draw_time_bar(frame)
+
+        # Botão de voltar ao menu (seta)
+        cv2.rectangle(frame, (20, 20), (80, 80), (255, 255, 255), -1)
+        pts = np.array([[30, 50], [60, 30], [60, 70]], np.int32)
+        cv2.fillPoly(frame, [pts], (0, 0, 0))
+        if click_coords[0]:
+            cx, cy = click_coords[0]
+            if 20 <= cx <= 80 and 20 <= cy <= 80:
+                click_coords[0] = None
+                self.finished = True
+                return self.render_final(frame, key=ord('m'))
 
         return frame
 
@@ -192,12 +246,33 @@ class Game:
         self._draw_confetes(frame)
 
         frame = self.draw_unicode_text(frame, "🎉 PARABÉNS!", (w // 2, h // 2 - 100), 48, (0, 255, 0), center=True)
-        frame = self.draw_unicode_text(frame, f"Pontuação final: {self.points}", (w // 2, h // 2 - 30), 36, (255, 255, 255), center=True)
-        frame = self.draw_unicode_text(frame, "Pressione R para jogar novamente", (w // 2, h // 2 + 30), 28, (255, 255, 0), center=True)
-        frame = self.draw_unicode_text(frame, "Pressione ESC para sair ❌", (w // 2, h // 2 + 70), 28, (255, 255, 255), center=True)
+
+        frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w // 2, h // 2 - 30), 36, (255, 255, 255), center=True)
+        frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w // 2, h // 2 + 10), 36, (255, 255, 255), center=True)
+
+        if self.scores[0] > self.scores[1]:
+            result = f"🏆 {self.nomes[0]} venceu!"
+        elif self.scores[1] > self.scores[0]:
+            result = f"🏆 {self.nomes[1]} venceu!"
+        else:
+            result = "🤝 Empate!"
+
+        frame = self.draw_unicode_text(frame, result, (w // 2, h // 2 + 50), 30, (0, 255, 255), center=True)
+        frame = self.draw_unicode_text(frame, "Pressione R para jogar novamente", (w // 2, h // 2 + 90), 28, (255, 255, 0), center=True)
+        frame = self.draw_unicode_text(frame, "Pressione ESC para sair ❌", (w // 2, h // 2 + 130), 28, (255, 255, 255), center=True)
+
+        # Botão de voltar ao menu (seta)
+        cv2.rectangle(frame, (20, 20), (80, 80), (255, 255, 255), -1)
+        pts = np.array([[30, 50], [60, 30], [60, 70]], np.int32)
+        cv2.fillPoly(frame, [pts], (0, 0, 0))
+        if click_coords[0]:
+            cx, cy = click_coords[0]
+            if 20 <= cx <= 80 and 20 <= cy <= 80:
+                click_coords[0] = None
+                return "menu"
 
         ranking = self.load_ranking()
-        y = h // 2 + 120
+        y = h // 2 + 180
         frame = self.draw_unicode_text(frame, "🏆 Ranking:", (w // 2, y), 28, (255, 215, 0), center=True)
         for i, r in enumerate(ranking):
             y += 35
