@@ -1,45 +1,57 @@
-# Ignorar arquivos Python compilados
+# === PYTHON ===
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 
-# Ignorar arquivos temporários e logs
+# === LOGS & TEMP ===
 *.log
 *.tmp
 *.temp
 *.bak
 *.swp
+
+# === SISTEMA ===
 .DS_Store
 Thumbs.db
 
-# Ignorar ambientes virtuais
+# === AMBIENTES VIRTUAIS ===
 venv/
 .env/
 .envrc
 
-# Ignorar notebooks temporários e cache
+# === CACHES E TESTES ===
 .ipynb_checkpoints/
 .cache/
 .mypy_cache/
 .pytest_cache/
 
-# Ignorar arquivos de configuração de IDEs
+# === IDEs ===
 .vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
 
-# Ignorar arquivos pessoais e backups
+# === ARQUIVOS PESSOAIS E BACKUPS ===
 *.old
 *.orig
 
-# Permitir arquivos importantes para o projeto
+# === COMPILAÇÕES E BUILD ===
+dist/
+build/
+*.spec
+
+# === PERMITIR ARQUIVOS ESSENCIAIS ===
 !*.pkl
 !*.json
 !*.mp3
 !*.ttf
 !labels.txt
+!README.md
 
-# Permitir arquivos dentro de assets/
+# === GARANTIR INCLUSÃO DE ASSETS E MODELS ===
 !src/assets/*
+!models/*
+!data/ranking.db
+!src/config.json
+!src/labels.txt
