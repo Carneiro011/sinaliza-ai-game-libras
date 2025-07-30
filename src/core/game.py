@@ -24,14 +24,11 @@ class Game:
         self.letter_timer = config.get("letter_timer", 10)
         self.num_players = config.get("jogadores", 1)
         self.nomes = config.get("nomes", ["Jogador 1", "Jogador 2"])
-        self.current_player = 0
-        self.scores = [0, 0]
         self._init_db()
-        self.reset()
-
         pygame.mixer.init()
         if os.path.exists(self.sound_path):
             pygame.mixer.music.load(self.sound_path)
+        self.reset()
 
     def _init_db(self):
         os.makedirs("data", exist_ok=True)
@@ -69,6 +66,7 @@ class Game:
         return self.finished
 
     def skip_letter(self):
+        self.scores[self.current_player] -= 5  # ❌ Penalidade por pular ou tempo esgotado
         self.idx_letter += 1
         if self.idx_letter >= len(self.words[self.idx_word]):
             self.skip_word()
@@ -85,8 +83,9 @@ class Game:
 
     def update(self, pred_letter):
         now = time.time()
-        if now - self.last_time > self.letter_timer:
-            self.feedback = "⏳ TEMPO ESGOTADO!"
+        elapsed = now - self.last_time
+        if elapsed > self.letter_timer:
+            self.feedback = "⏳ TEMPO ESGOTADO! -5"
             self.feedback_time = 30
             self.skip_letter()
             self.last_time = now
@@ -94,15 +93,19 @@ class Game:
 
         target = self.words[self.idx_word][self.idx_letter]
         if pred_letter == target:
-            self.scores[self.current_player] += 10
+            if elapsed <= self.letter_timer * 0.5:
+                self.scores[self.current_player] += 10
+                self.feedback = "⚡ Muito rápido! +10"
+            else:
+                self.scores[self.current_player] += 5
+                self.feedback = "✅ Acertou! +5"
             self.idx_letter += 1
-            self.feedback = "✅ ACERTOU!"
             self.feedback_time = 30
             self.last_time = now
 
             if self.idx_letter >= len(self.words[self.idx_word]):
                 self.scores[self.current_player] += 50
-                self.feedback = "🎉 PALAVRA COMPLETA!"
+                self.feedback = "🎉 Palavra completa! +50"
                 self.feedback_time = 60
                 self.completed.append(self.words[self.idx_word])
                 self.idx_word += 1
@@ -222,14 +225,18 @@ class Game:
             frame = self.draw_unicode_text(frame, f"{self.nomes[0]}: {self.scores[0]} pts", (w - 300, 40), 28)
             frame = self.draw_unicode_text(frame, f"{self.nomes[1]}: {self.scores[1]} pts", (w - 300, 80), 28)
 
-        frame = self.draw_unicode_text(frame, f"🎯 Vez de: {self.nomes[self.current_player]}", (w // 2, 40), 28, (0, 255, 255), center=True)
+        frame = self.draw_unicode_text(frame, f"🎯 Vez de: {self.nomes[self.current_player]}", (w // 2, 40), 28, (255, 117, 24), center=True)
         frame = self.draw_unicode_text(frame, f"Previsto: {pred_letter}", (50, h - 50), 28)
         tempo_restante = max(0, int(self.letter_timer - (time.time() - self.last_time)))
         frame = self.draw_unicode_text(frame, f"{tempo_restante}s", (w - 100, h - 50), 28)
 
         if self.feedback_time > 0:
-            frame = self.draw_unicode_text(frame, self.feedback, (w // 2, h // 2), 40, (0, 255, 0), center=True)
+            cor = (0, 255, 0)
+            if "TEMPO ESGOTADO" in self.feedback:
+                cor = (255, 36, 0)  # vermelho
+            frame = self.draw_unicode_text(frame, self.feedback, (w // 2, h // 2), 40, cor, center=True)
             self.feedback_time -= 1
+
 
         frame = self.draw_time_bar(frame)
 

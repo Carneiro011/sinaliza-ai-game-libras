@@ -3,12 +3,14 @@ import os
 import json
 import sqlite3
 import tkinter as tk
+from tkinter import messagebox  # ✅ Importação adicionada
 import customtkinter as ctk
 
 # Adiciona o diretório src ao sys.path para importar corretamente
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core import main
+from core.test_mode import run_test  # ✅ Modo de teste de gestos
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -73,6 +75,10 @@ class App(ctk.CTk):
 
         ctk.CTkButton(self.frame_conteudo, text="▶️ Iniciar Jogo", command=self.iniciar_jogo).pack(pady=20)
 
+        # ✅ Botão Limpar Ranking no canto inferior direito
+        btn_limpar = ctk.CTkButton(self.frame_conteudo, text="🗑️ Limpar Ranking", command=self.limpar_ranking)
+        btn_limpar.place(relx=1.0, rely=1.0, x=-20, y=-20, anchor="se")  # canto inferior direito
+
     def mostrar_config(self):
         self.limpar_conteudo()
 
@@ -101,6 +107,12 @@ class App(ctk.CTk):
 
         ctk.CTkLabel(self.frame_conteudo, text="👤 Nome do Jogador 2:").pack(pady=(10, 0))
         ctk.CTkEntry(self.frame_conteudo, textvariable=self.nome2).pack()
+
+        ctk.CTkButton(
+            self.frame_conteudo,
+            text="🖐️ Testar Gestos (Modo Visual)",
+            command=self.testar_gestos
+        ).pack(pady=20)
 
     def atualizar_tempo_valor(self, value):
         if self.label_valor_tempo:
@@ -132,6 +144,24 @@ class App(ctk.CTk):
         except Exception as e:
             print(f"[ERRO] ao carregar ranking do banco: {e}")
             return []
+
+    def limpar_ranking(self):  # ✅ Método com confirmação
+        confirm = messagebox.askyesno("Confirmar", "Tem certeza que deseja apagar TODO o ranking?")
+        if confirm:
+            try:
+                db_path = os.path.abspath(os.path.join("data", "ranking.db"))
+                if os.path.exists(db_path):
+                    conn = sqlite3.connect(db_path)
+                    c = conn.cursor()
+                    c.execute("DELETE FROM ranking")
+                    conn.commit()
+                    conn.close()
+                self.mostrar_inicio()
+            except Exception as e:
+                print(f"[ERRO] ao limpar ranking: {e}")
+
+    def testar_gestos(self):
+        run_test()
 
 if __name__ == "__main__":
     app = App()

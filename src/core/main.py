@@ -4,8 +4,10 @@ import cv2
 import os
 import sqlite3
 from datetime import datetime
+import time
 from hand_detector import HandDetector
 from game import Game
+
 
 def load_config():
     try:
@@ -16,6 +18,7 @@ def load_config():
     except Exception as e:
         print(f"[ERRO] lendo config: {e}")
         sys.exit(1)
+
 
 def salvar_ranking_db(nome, pontos, tempo):
     db_path = os.path.abspath(os.path.join("data", "ranking.db"))
@@ -32,10 +35,11 @@ def salvar_ranking_db(nome, pontos, tempo):
             data TEXT NOT NULL
         )
     """)
-    c.execute("INSERT INTO ranking (nome, pontos, tempo, data) VALUES (?, ?, ?, ?)", 
+    c.execute("INSERT INTO ranking (nome, pontos, tempo, data) VALUES (?, ?, ?, ?)",
               (nome, pontos, tempo, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
+
 
 def run_game(tempo_por_letra, jogadores=1, nomes=None):
     cfg = load_config()
@@ -71,25 +75,23 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
             frame, letter = detector.detect(frame)
             if letter:
                 game.update(letter)
-            frame = game.render(frame, letter, key=key)
+            result = game.render(frame, letter, key=key)
         else:
             result = game.render_final(frame, key=key)
 
-            if isinstance(result, str) and result == "menu":
-                # Salva resultado no banco (vencedor)
-                vencedor_idx = 0 if game.scores[0] >= game.scores[1] else 1
-                salvar_ranking_db(
-                    game.nomes[vencedor_idx],
-                    game.scores[vencedor_idx],
-                    round(game.session_start and (time.time() - game.session_start))
-                )
-                cap.release()
-                cv2.destroyAllWindows()
-                import gui
-                gui.App().mainloop()
-                return
-            else:
-                frame = result
+        # Verifica se retornou ao menu
+        if isinstance(result, str) and result == "menu":
+            vencedor_idx = 0 if game.scores[0] >= game.scores[1] else 1
+            salvar_ranking_db(
+                game.nomes[vencedor_idx],
+                game.scores[vencedor_idx],
+                round(time.time() - game.session_start)
+            )
+            cap.release()
+            cv2.destroyAllWindows()
+            return  # <-- Apenas retorna, não cria nova janela!
+        else:
+            frame = result
 
         cv2.imshow("Soletrador - LIBRAS", frame)
 
@@ -98,6 +100,7 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     run_game(tempo_por_letra=10, jogadores=1, nomes=["Jogador 1", "Jogador 2"])
