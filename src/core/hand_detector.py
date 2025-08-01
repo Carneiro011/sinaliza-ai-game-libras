@@ -3,7 +3,7 @@ import numpy as np
 import mediapipe as mp
 from collections import deque
 import pickle
-import os
+from .utils import get_path  
 
 def load_labels(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -20,10 +20,9 @@ class HandDetector:
             min_tracking_confidence=config.get("min_tracking_confidence", 0.5)
         )
 
-        # Caminhos absolutos para modelo e labels
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        model_path = os.path.join(project_root, config["model_path"])
-        labels_path = os.path.join(project_root, config["labels_file"])
+        
+        model_path = get_path("models/modelo_libras.pkl")
+        labels_path = get_path("src/labels.txt")
 
         print(f">>> Carregando modelo de: {model_path}")
         with open(model_path, "rb") as f:

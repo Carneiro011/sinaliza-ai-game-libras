@@ -50,21 +50,7 @@
 
 ## 🔨 Como Compilar (.exe)
 
-```bash
-pyinstaller src/core/gui.py ^
-  --name "Sinaliza Ai!" ^
-  --noconfirm ^
-  --clean ^
-  --onefile ^
-  --windowed ^
-  --icon=favicon.ico ^
-  --paths=src ^
-  --add-data "models/modelo_libras.pkl;models" ^
-  --add-data "data/ranking.db;data" ^
-  --add-data "src/config.json;src" ^
-  --add-data "src/labels.txt;src" ^
-  --add-data "src/assets/vitoria.mp3;src/assets" ^
-  --add-data "src/assets/seguiemj.ttf;src/assets"
+pyinstaller SinalizaAi.spec 
 
 
 Créditos

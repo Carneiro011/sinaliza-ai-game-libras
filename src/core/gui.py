@@ -3,27 +3,29 @@ import os
 import json
 import sqlite3
 import tkinter as tk
-from tkinter import messagebox  # ✅ Importação adicionada
+from tkinter import messagebox
 import customtkinter as ctk
 
-# Adiciona o diretório src ao sys.path para importar corretamente
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core import main
-from core.test_mode import run_test  # ✅ Modo de teste de gestos
+from core.test_mode import run_test
+from core.utils import get_path  
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
+
 def load_config():
     try:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.abspath(os.path.join(base_dir, "..", "..", "config.json"))
+        config_path = get_path("src/config.json")  
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"[ERRO] ao ler config: {e}")
         return {}
+
 
 class App(ctk.CTk):
     def __init__(self):
@@ -75,9 +77,8 @@ class App(ctk.CTk):
 
         ctk.CTkButton(self.frame_conteudo, text="▶️ Iniciar Jogo", command=self.iniciar_jogo).pack(pady=20)
 
-        # ✅ Botão Limpar Ranking no canto inferior direito
         btn_limpar = ctk.CTkButton(self.frame_conteudo, text="🗑️ Limpar Ranking", command=self.limpar_ranking)
-        btn_limpar.place(relx=1.0, rely=1.0, x=-20, y=-20, anchor="se")  # canto inferior direito
+        btn_limpar.place(relx=1.0, rely=1.0, x=-20, y=-20, anchor="se")
 
     def mostrar_config(self):
         self.limpar_conteudo()
@@ -125,7 +126,7 @@ class App(ctk.CTk):
         main.run_game(tempo, jogadores, nomes)
 
     def carregar_ranking(self):
-        db_path = os.path.abspath(os.path.join("data", "ranking.db"))
+        db_path = get_path("data/ranking.db")  
         if not os.path.exists(db_path):
             return []
 
@@ -145,11 +146,11 @@ class App(ctk.CTk):
             print(f"[ERRO] ao carregar ranking do banco: {e}")
             return []
 
-    def limpar_ranking(self):  # ✅ Método com confirmação
+    def limpar_ranking(self):
         confirm = messagebox.askyesno("Confirmar", "Tem certeza que deseja apagar TODO o ranking?")
         if confirm:
             try:
-                db_path = os.path.abspath(os.path.join("data", "ranking.db"))
+                db_path = get_path("data/ranking.db")  
                 if os.path.exists(db_path):
                     conn = sqlite3.connect(db_path)
                     c = conn.cursor()
@@ -162,6 +163,7 @@ class App(ctk.CTk):
 
     def testar_gestos(self):
         run_test()
+
 
 if __name__ == "__main__":
     app = App()

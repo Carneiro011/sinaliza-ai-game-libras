@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import sqlite3
 from PIL import ImageFont, ImageDraw, Image
+from .utils import get_path  
 
 click_coords = [None]
 
@@ -18,20 +19,22 @@ class Game:
     def __init__(self, config):
         self.config = config
         self.words = config["words"]
-        self.db_path = os.path.abspath(os.path.join("data", "ranking.db"))
-        self.sound_path = "src/assets/vitoria.mp3"
-        self.font_path = "src/assets/seguiemj.ttf"
+        self.db_path = get_path("data/ranking.db")  
+        self.sound_path = get_path("src/assets/vitoria.mp3")  
+        self.font_path = get_path("src/assets/seguiemj.ttf") 
         self.letter_timer = config.get("letter_timer", 10)
         self.num_players = config.get("jogadores", 1)
         self.nomes = config.get("nomes", ["Jogador 1", "Jogador 2"])
+
         self._init_db()
         pygame.mixer.init()
         if os.path.exists(self.sound_path):
             pygame.mixer.music.load(self.sound_path)
+
         self.reset()
 
     def _init_db(self):
-        os.makedirs("data", exist_ok=True)
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute("""
@@ -66,7 +69,7 @@ class Game:
         return self.finished
 
     def skip_letter(self):
-        self.scores[self.current_player] -= 5  # ❌ Penalidade por pular ou tempo esgotado
+        self.scores[self.current_player] -= 5
         self.idx_letter += 1
         if self.idx_letter >= len(self.words[self.idx_word]):
             self.skip_word()
@@ -233,14 +236,12 @@ class Game:
         if self.feedback_time > 0:
             cor = (0, 255, 0)
             if "TEMPO ESGOTADO" in self.feedback:
-                cor = (255, 36, 0)  # vermelho
+                cor = (255, 36, 0)
             frame = self.draw_unicode_text(frame, self.feedback, (w // 2, h // 2), 40, cor, center=True)
             self.feedback_time -= 1
 
-
         frame = self.draw_time_bar(frame)
 
-        # Botão voltar
         cv2.rectangle(frame, (10, 10), (50, 50), (255, 255, 255), -1)
         pts = np.array([[18, 30], [40, 18], [40, 42]], np.int32)
         cv2.fillPoly(frame, [pts], (0, 0, 0))
@@ -282,7 +283,6 @@ class Game:
         frame = self.draw_unicode_text(frame, "Pressione R para jogar novamente", (w // 2, h // 2 + 110), 28, (255, 255, 0), center=True)
         frame = self.draw_unicode_text(frame, "Pressione ESC para sair ❌", (w // 2, h // 2 + 150), 28, (255, 255, 255), center=True)
 
-        # Botão de voltar
         cv2.rectangle(frame, (10, 10), (50, 50), (255, 255, 255), -1)
         pts = np.array([[18, 30], [40, 18], [40, 42]], np.int32)
         cv2.fillPoly(frame, [pts], (0, 0, 0))

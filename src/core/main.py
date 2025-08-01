@@ -1,19 +1,21 @@
-import json
 import sys
-import cv2
 import os
+import json
+import cv2
 import sqlite3
-from datetime import datetime
 import time
-from hand_detector import HandDetector
-from game import Game
+from datetime import datetime
+
+from . import db
+from . import game
+from .hand_detector import HandDetector
+from .utils import get_path 
 
 
 def load_config():
     try:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.abspath(os.path.join(base_dir, "..", "config.json"))
-        with open(path, "r", encoding="utf-8") as f:
+        config_path = get_path("src/config.json")
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"[ERRO] lendo config: {e}")
@@ -21,7 +23,7 @@ def load_config():
 
 
 def salvar_ranking_db(nome, pontos, tempo):
-    db_path = os.path.abspath(os.path.join("data", "ranking.db"))
+    db_path = get_path("data/ranking.db")  
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
     conn = sqlite3.connect(db_path)
@@ -55,13 +57,11 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
         print("[ERRO] câmera não disponível.")
         sys.exit(1)
 
-    detector = HandDetector(cfg)
-    game = Game(cfg)
+    detector = HandDetector(cfg)  
+    game_instance = game.Game(cfg)
 
-    # Configura callback de clique
     cv2.namedWindow("Soletrador - LIBRAS")
-    import game as game_module
-    cv2.setMouseCallback("Soletrador - LIBRAS", game_module.mouse_click)
+    cv2.setMouseCallback("Soletrador - LIBRAS", game.mouse_click)
 
     while True:
         ret, frame = cap.read()
@@ -71,25 +71,24 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
         frame = cv2.flip(frame, 1)
         key = cv2.waitKey(5) & 0xFF
 
-        if not game.check_finished():
+        if not game_instance.check_finished():
             frame, letter = detector.detect(frame)
             if letter:
-                game.update(letter)
-            result = game.render(frame, letter, key=key)
+                game_instance.update(letter)
+            result = game_instance.render(frame, letter, key=key)
         else:
-            result = game.render_final(frame, key=key)
+            result = game_instance.render_final(frame, key=key)
 
-        # Verifica se retornou ao menu
         if isinstance(result, str) and result == "menu":
-            vencedor_idx = 0 if game.scores[0] >= game.scores[1] else 1
+            vencedor_idx = 0 if game_instance.scores[0] >= game_instance.scores[1] else 1
             salvar_ranking_db(
-                game.nomes[vencedor_idx],
-                game.scores[vencedor_idx],
-                round(time.time() - game.session_start)
+                game_instance.nomes[vencedor_idx],
+                game_instance.scores[vencedor_idx],
+                round(time.time() - game_instance.session_start)
             )
             cap.release()
             cv2.destroyAllWindows()
-            return  # <-- Apenas retorna, não cria nova janela!
+            return
         else:
             frame = result
 

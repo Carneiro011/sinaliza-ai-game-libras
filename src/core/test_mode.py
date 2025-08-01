@@ -1,15 +1,17 @@
-# test_mode.py
 import cv2
 import sys
 import os
-from hand_detector import HandDetector
-from game import Game  # Para usar o método de desenhar texto
 import json
+from .hand_detector import HandDetector
+from .game import Game  
+
+def get_path(relative_path):
+    base_path = getattr(sys, "_MEIPASS", os.path.abspath("."))
+    return os.path.join(base_path, relative_path)
 
 def load_config():
     try:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        path = os.path.abspath(os.path.join(base_dir, "..", "config.json"))
+        path = get_path("src/config.json")  
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
@@ -27,7 +29,7 @@ def run_test():
         sys.exit(1)
 
     detector = HandDetector(cfg)
-    dummy_game = Game(cfg)  # Para usar draw_unicode_text
+    dummy_game = Game(cfg)
 
     while True:
         ret, frame = cap.read()
