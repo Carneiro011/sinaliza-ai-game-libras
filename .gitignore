@@ -39,7 +39,7 @@ venv/
 # === COMPILAÇÕES E BUILD ===
 dist/
 build/
-*.spec
+
 
 # === PERMITIR ARQUIVOS ESSENCIAIS ===
 !*.pkl
