@@ -11,7 +11,6 @@ from . import game
 from .hand_detector import HandDetector
 from .utils import get_path 
 
-
 def load_config():
     try:
         config_path = get_path("src/config.json")
@@ -20,7 +19,6 @@ def load_config():
     except Exception as e:
         print(f"[ERRO] lendo config: {e}")
         sys.exit(1)
-
 
 def salvar_ranking_db(nome, pontos, tempo):
     db_path = get_path("data/ranking.db")  
@@ -32,16 +30,15 @@ def salvar_ranking_db(nome, pontos, tempo):
         CREATE TABLE IF NOT EXISTS ranking (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            pontos INTEGER NOT NULL,
+            pontos REAL NOT NULL,
             tempo INTEGER NOT NULL,
             data TEXT NOT NULL
         )
     """)
     c.execute("INSERT INTO ranking (nome, pontos, tempo, data) VALUES (?, ?, ?, ?)",
-              (nome, pontos, tempo, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+              (nome, round(pontos, 2), tempo, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
     conn.close()
-
 
 def run_game(tempo_por_letra, jogadores=1, nomes=None):
     cfg = load_config()
@@ -80,12 +77,7 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
             result = game_instance.render_final(frame, key=key)
 
         if isinstance(result, str) and result == "menu":
-            vencedor_idx = 0 if game_instance.scores[0] >= game_instance.scores[1] else 1
-            salvar_ranking_db(
-                game_instance.nomes[vencedor_idx],
-                game_instance.scores[vencedor_idx],
-                round(time.time() - game_instance.session_start)
-            )
+            # Nenhuma necessidade de salvar novamente aqui, pois game.save_ranking() já fez isso
             cap.release()
             cv2.destroyAllWindows()
             return
@@ -99,7 +91,6 @@ def run_game(tempo_por_letra, jogadores=1, nomes=None):
 
     cap.release()
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     run_game(tempo_por_letra=10, jogadores=1, nomes=["Jogador 1", "Jogador 2"])

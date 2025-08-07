@@ -26,6 +26,9 @@ class Game:
         self.num_players = config.get("jogadores", 1)
         self.nomes = config.get("nomes", ["Jogador 1", "Jogador 2"])
 
+        self.valor_base = 2.0
+        self.multiplicador = 0.2
+
         self._init_db()
         pygame.mixer.init()
         if os.path.exists(self.sound_path):
@@ -41,7 +44,7 @@ class Game:
             CREATE TABLE IF NOT EXISTS ranking (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 nome TEXT,
-                pontos INTEGER,
+                pontos REAL,
                 tempo INTEGER,
                 data TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -62,19 +65,22 @@ class Game:
         self.confetes = []
         self.played_sound = False
         self.current_player = 0
-        self.scores = [0, 0]
+        self.scores = [0.0, 0.0]
+        self.sequencia_acertos = 0
         click_coords[0] = None
 
     def check_finished(self):
         return self.finished
 
     def skip_letter(self):
-        self.scores[self.current_player] -= 5
+        self.sequencia_acertos = 0
+        self.scores[self.current_player] -= 5.75
         self.idx_letter += 1
         if self.idx_letter >= len(self.words[self.idx_word]):
             self.skip_word()
 
     def skip_word(self):
+        self.sequencia_acertos = 0
         self.idx_word += 1
         self.idx_letter = 0
         if self.idx_word >= len(self.words):
@@ -88,7 +94,7 @@ class Game:
         now = time.time()
         elapsed = now - self.last_time
         if elapsed > self.letter_timer:
-            self.feedback = "⏳ TEMPO ESGOTADO! -5"
+            self.feedback = "⏳ TEMPO ESGOTADO! -5.75"
             self.feedback_time = 30
             self.skip_letter()
             self.last_time = now
@@ -96,23 +102,30 @@ class Game:
 
         target = self.words[self.idx_word][self.idx_letter]
         if pred_letter == target:
+            self.sequencia_acertos += 1
+            ganho_tempo = self.valor_base + (self.multiplicador * self.sequencia_acertos)
+            self.letter_timer = min(self.letter_timer + ganho_tempo, 15.0)
+
             if elapsed <= self.letter_timer * 0.5:
-                self.scores[self.current_player] += 10
-                self.feedback = "⚡ Muito rápido! +10"
+                self.scores[self.current_player] += 10.3
+                self.feedback = f"⚡ Muito rápido! +10.30 (+{ganho_tempo:.2f}s)"
             else:
-                self.scores[self.current_player] += 5
-                self.feedback = "✅ Acertou! +5"
+                self.scores[self.current_player] += 6.7
+                self.feedback = f"✅ Acertou! +6.70 (+{ganho_tempo:.2f}s)"
+
             self.idx_letter += 1
             self.feedback_time = 30
             self.last_time = now
 
             if self.idx_letter >= len(self.words[self.idx_word]):
-                self.scores[self.current_player] += 50
-                self.feedback = "🎉 Palavra completa! +50"
+                bonus = 3.33 * len(self.words[self.idx_word])
+                self.scores[self.current_player] += bonus
+                self.feedback = f"🎉 Palavra completa! +{bonus:.2f}"
                 self.feedback_time = 60
                 self.completed.append(self.words[self.idx_word])
                 self.idx_word += 1
                 self.idx_letter = 0
+                self.sequencia_acertos = 0
                 if self.num_players == 2:
                     self.current_player = (self.current_player + 1) % 2
                 if self.idx_word >= len(self.words):
@@ -264,9 +277,11 @@ class Game:
         self._draw_confetes(frame)
         frame = self.draw_unicode_text(frame, "🎉 PARABÉNS!", (w // 2, h // 2 - 100), 48, (0, 255, 0), center=True)
 
-        placares = [f"{self.nomes[0]}: {self.scores[0]} pts"]
+        placares = [f"{self.nomes[0]}: {self.scores[0]:.3f} pts"]
+
         if self.num_players == 2:
-            placares.append(f"{self.nomes[1]}: {self.scores[1]} pts")
+            placares.append(f"{self.nomes[1]}: {self.scores[1]:.3f} pts")
+
 
         start_y = h // 2 - 30
         for i, texto in enumerate(placares):
@@ -299,7 +314,7 @@ class Game:
         for i, r in enumerate(ranking):
             y += 35
             nome, pontos, tempo, data = r
-            texto = f"{i + 1}º - {nome} - {pontos} pts em {tempo}s ({data[:16]})"
+            texto = f"{i + 1}º - {nome} - {pontos:.3f} pts em {tempo}s ({data[:16]})"
             frame = self.draw_unicode_text(frame, texto, (w // 2, y), 24, center=True)
 
         if key == ord('r'):

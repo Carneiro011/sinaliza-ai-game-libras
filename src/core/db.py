@@ -13,7 +13,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS ranking (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            pontos INTEGER NOT NULL,
+            pontos REAL NOT NULL,
             tempo INTEGER NOT NULL,
             data DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -28,7 +28,7 @@ def salvar_partida(nome, pontos, tempo):
     cursor.execute("""
         INSERT INTO ranking (nome, pontos, tempo)
         VALUES (?, ?, ?)
-    """, (nome, pontos, tempo))
+    """, (nome, round(pontos, 2), tempo))
     conn.commit()
     conn.close()
 

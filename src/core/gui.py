@@ -6,7 +6,6 @@ import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk
 
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core import main
@@ -16,7 +15,6 @@ from core.utils import get_path
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-
 def load_config():
     try:
         config_path = get_path("src/config.json")  
@@ -25,7 +23,6 @@ def load_config():
     except Exception as e:
         print(f"[ERRO] ao ler config: {e}")
         return {}
-
 
 class App(ctk.CTk):
     def __init__(self):
@@ -72,7 +69,7 @@ class App(ctk.CTk):
             ctk.CTkLabel(self.frame_conteudo, text="Nenhum ranking disponível.").pack()
         else:
             for i, (nome, pontos, tempo, data) in enumerate(ranking):
-                texto = f"{i+1}º - {nome} - {pontos} pts em {tempo}s ({data[:16]})"
+                texto = f"{i+1}º - {nome} - {float(pontos):.2f} pts em {tempo}s ({data[:16]})"
                 ctk.CTkLabel(self.frame_conteudo, text=texto).pack()
 
         ctk.CTkButton(self.frame_conteudo, text="▶️ Iniciar Jogo", command=self.iniciar_jogo).pack(pady=20)
@@ -163,7 +160,6 @@ class App(ctk.CTk):
 
     def testar_gestos(self):
         run_test()
-
 
 if __name__ == "__main__":
     app = App()
